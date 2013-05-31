@@ -8,7 +8,9 @@
          racket/date
          (only-in srfi/1 break)
          (for-syntax racket/syntax)
+         "pygments.rkt"
          "watch-dir.rkt"
+         "verbosity.rkt"
          ;; Remainder are just for the preview feature:
          web-server/servlet-env
          web-server/http
@@ -102,7 +104,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Parameters loaded from configuration file
 
-(define current-verbosity (make-parameter 0))
 (define current-scheme/host (make-parameter #f))
 (define current-title (make-parameter #f))
 (define current-author (make-parameter #f))
@@ -124,25 +125,6 @@
 (define current-bootstrap-responsive? (make-parameter #f))
 (define current-twitter-name (make-parameter #f))
 (define current-favicon (make-parameter #f))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; verbosity
-
-(define (prn level fmt . vs)
-  (when (>= (current-verbosity) level)
-    (apply printf fmt vs)
-    (newline)))
-
-(define-syntax (define-prn stx)
-  (syntax-case stx ()
-    [(_ level)
-     (with-syntax ([id (format-id stx "prn~a" (syntax-e #'level))])
-       #'(define (id fmt . vs)
-           (apply prn level fmt vs)))]))
-
-(define-prn 0)
-(define-prn 1)
-(define-prn 2)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -683,62 +665,6 @@
                   [else `((pre ,text))])]
                [else (list x)]))))
 
-(define-runtime-path pipe.py "pipe.py")
-(define (start-pygments)
-  (match-define (list pyg-in pyg-out pyg-pid pyg-err pyg-proc)
-                (process (str "python -u " pipe.py)))
-  (file-stream-buffer-mode pyg-out 'line)
-  (case-lambda
-    [(lexer code)
-     (displayln lexer pyg-out)
-     (displayln code pyg-out)
-     (displayln "__END__" pyg-out)
-     (let loop ([s ""])
-       (match (read-line pyg-in 'any)
-         ["__END__" (~> (open-input-string s)
-                        (h:read-html-as-xml)
-                        ((lambda (xs) (make-element #f #f '*root '() xs)))
-                        xml->xexpr
-                        cddr)]
-         [(? string? v) (loop (str s v "\n"))]
-         [_ (copy-port pyg-err (current-output-port))]))]
-    [() ;; stop
-     (displayln "__EXIT__" pyg-out)
-     (begin0 (or (pyg-proc 'exit-code) (pyg-proc 'kill))
-       (close-input-port pyg-in)
-       (close-output-port pyg-out)
-       (close-input-port pyg-err))]))
-
-(define pyg (start-pygments))
-;; (define-runtime-path HERE ".")
-;; (pyg "racket" (file->string (build-path HERE "info.rkt")))
-;; (pyg "js"     (file->string (build-path HERE "disqus.js")))
-;; (pyg "js"     (file->string (build-path HERE "tweet-button.js")))
-;; (pyg "racket" (file->string (build-path HERE "frog.rkt")))
-;; (pyg "racket" "(displayln #t)")
-;; (pyg "python" "print 'foobar'")
-;; (pyg "scheme" "print 'foobar'")
-;; (pyg) ;; quit
-
-;; TO-DO: How to call (pyg) to clean up?
-(define (pygmentize text lang)
-  ;;(printf "~a\n" lang)
-  (pyg lang text))
-
-(define (pygments.css)
-  (path->string (build-path (www-path) "css" "pygments.css")))
-
-(define (make-pygments.css style)
-  (when (current-pygments-pathname)
-    (define cmd (str #:sep " "
-                     (expand-user-path (current-pygments-pathname))
-                     "-f html"
-                     "-S " style
-                     "> " (pygments.css)))
-    (prn0 "Generating css/pygments.css")
-    (system cmd)
-    (void)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (xexprs->description xs [num 3])
@@ -1144,6 +1070,7 @@ EOF
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (build)
+  (start-pygments)
   ;; Read the posts and get (listof post?) with which to do more work.
   ;; Sort the list by date, newest first.
   (define (post<=? a b)
@@ -1201,10 +1128,7 @@ EOF
     (thunk (for ([x (in-list (map full-uri
                                   (append (map post-uri-path posts) pages)))])
              (displayln x))))
-  ;; Generate pygments.css automatically ONLY if it doesn't already
-  ;; exist
-  (unless (file-exists? (pygments.css))
-    (make-pygments.css "default"))
+  (stop-pygments)
   (prn0 "Done generating files")
   (void))
 
@@ -1220,12 +1144,16 @@ EOF
   (define-values (base name dir?) (split-path path))
   (cond [(equal? (str base) ;a post md file?
                  (str (src/posts-path) "/"))
+         (start-pygments)
          (match (read-post path 'file '())
            [(list p) (write-post-page p p p) #t]
-           [_ #f])]
+           [_ #f])
+         (stop-pygments)]
         [else (match name
                 [(pregexp "\\.(md|markdown)$")
-                 (build-non-post-pages)]
+                 (start-pygments)
+                 (build-non-post-pages)
+                 (stop-pygments)]
                 [_ #f])]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1413,10 +1341,6 @@ EOF
          "3. Watch for changed files, and generate again."
          "   (You'll need to refresh the browser yourself.")
         (watch)]
-       [("--pygments-css") style-name
-        (""
-         "Generate ./css/pygments.css using style-name (ex: 'default')")
-        (make-pygments.css style-name)]
        #:once-any
        [("-v" "--verbose") "Verbose. Put first."
         (current-verbosity 1)
