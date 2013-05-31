@@ -28,20 +28,23 @@ while 1:
     line_raw = sys.stdin.readline()
     if not line_raw:
         break
+    # Without trailing space, \n, or \n
     line = line_raw.rstrip()
     if line == '__EXIT__':
-        # sys.stdout.write('__EXIT__\n')
-        # sys.stdout.flush
         break
     elif line == '__END__':
+        # Lex input finished. Lex it.
         sys.stdout.write(highlight(code, lexer, formatter))
         sys.stdout.write('\n__END__\n')
         sys.stdout.flush
         lexer = ""
         code = ""
     elif lexer == "":
+        # Starting another lex. First line is the lexer name.
         lexer = get_lexer_by_name(line, encoding="guess")
     else:
-        code += line_raw # not stripped, want \n
+        # Accumulate more code
+        # Use `line_raw`: Do want trailing space, \n, \r
+        code += line_raw
 
 exit(0)
