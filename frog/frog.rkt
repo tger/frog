@@ -683,35 +683,47 @@
                   [else `((pre ,text))])]
                [else (list x)]))))
 
+(define-runtime-path pipe.py "pipe.py")
+(define (start-pygments)
+  (match-define (list pyg-in pyg-out pyg-pid pyg-err pyg-proc)
+                (process (str "python -u " pipe.py)))
+  (file-stream-buffer-mode pyg-out 'line)
+  (case-lambda
+    [(lexer code)
+     (displayln lexer pyg-out)
+     (displayln code pyg-out)
+     (displayln "__END__" pyg-out)
+     (let loop ([s ""])
+       (match (read-line pyg-in 'any)
+         ["__END__" (~> (open-input-string s)
+                        (h:read-html-as-xml)
+                        ((lambda (xs) (make-element #f #f '*root '() xs)))
+                        xml->xexpr
+                        cddr)]
+         [(? string? v) (loop (str s v "\n"))]
+         [_ (copy-port pyg-err (current-output-port))]))]
+    [() ;; stop
+     (displayln "__EXIT__" pyg-out)
+     (begin0 (or (pyg-proc 'exit-code) (pyg-proc 'kill))
+       (close-input-port pyg-in)
+       (close-output-port pyg-out)
+       (close-input-port pyg-err))]))
+
+(define pyg (start-pygments))
+;; (define-runtime-path HERE ".")
+;; (pyg "racket" (file->string (build-path HERE "info.rkt")))
+;; (pyg "js"     (file->string (build-path HERE "disqus.js")))
+;; (pyg "js"     (file->string (build-path HERE "tweet-button.js")))
+;; (pyg "racket" (file->string (build-path HERE "frog.rkt")))
+;; (pyg "racket" "(displayln #t)")
+;; (pyg "python" "print 'foobar'")
+;; (pyg "scheme" "print 'foobar'")
+;; (pyg) ;; quit
+
+;; TO-DO: How to call (pyg) to clean up?
 (define (pygmentize text lang)
-  (cond [(current-pygments-pathname)
-         (prn2 "  system call to pygmentize")
-         (define tmp-in (make-temporary-file))
-         (define tmp-out (make-temporary-file))
-         (display-to-file text tmp-in #:exists 'replace)
-         (define cmd (str #:sep " "
-                          (expand-user-path (current-pygments-pathname))
-                          "-f html"
-                          "-O linenos=1,encoding=utf-8"
-                          "-l" lang
-                          "-o" tmp-out
-                          tmp-in))
-         (define code (system/exit-code cmd))
-         (begin0
-             (cond [(zero? code)
-                    (define (elements->element xs)
-                      (make-element #f #f '*root '() xs))
-                    (with-input-from-file tmp-out
-                      (thunk
-                       (parameterize ([permissive-xexprs #t])
-                         (~> (h:read-html-as-xml)
-                             elements->element
-                             xml->xexpr
-                             cddr))))]
-                   [else `((pre ,text))])
-           (delete-file tmp-in)
-           (delete-file tmp-out))]
-        [else `((pre ,text))]))
+  ;;(printf "~a\n" lang)
+  (pyg lang text))
 
 (define (pygments.css)
   (path->string (build-path (www-path) "css" "pygments.css")))
