@@ -117,7 +117,6 @@
 (define current-google-analytics-account (make-parameter #f))
 (define current-google-analytics-domain (make-parameter #f))
 (define current-disqus-shortname (make-parameter #f))
-(define current-pygments-pathname (make-parameter #f))
 (define current-decorate-feed-uris? (make-parameter #t))
 (define current-feed-image-bugs? (make-parameter #f))
 (define current-older/newer-buttons (make-parameter "both"))
@@ -1276,7 +1275,6 @@ EOF
                                [google-analytics-account #f]
                                [google-analytics-domain #f]
                                [disqus-shortname #f]
-                               [pygments-pathname #f]
                                [decorate-feed-uris? #t]
                                [feed-image-bugs? #f]
                                [older/newer-buttons "both"]
@@ -1308,7 +1306,6 @@ EOF
                                [google-analytics-account #f]
                                [google-analytics-domain #f]
                                [disqus-shortname #f]
-                               [pygments-pathname #f]
                                [decorate-feed-uris? #t]
                                [feed-image-bugs? #f]
                                [older/newer-buttons "both"]

@@ -157,9 +157,8 @@ bottom of posts and non-post pages.
 
 ## Code blocks
 
-Frog optionally uses [Pygments][] to do syntax
-highlighting. In your markdown using backtick code blocks you can
-specify a language:
+Frog optionally uses [Pygments][] to do syntax highlighting. In your
+markdown using backtick code blocks you can specify a language:
 
     ```language
     some lines
@@ -433,9 +432,6 @@ feed-image-bugs? = true
 # Optional: Disqus comment system "short name"
 # disqus-shortname = MyShortName
 
-# Optional: Path to Pygments executable
-# pygments-pathname = ~/src/pygments-main/pygmentize
-
 # Optional: Twitter name for follow button. (Do NOT include @ prefix.)
 # twitter-name = xxx
 ```
@@ -452,7 +448,6 @@ frog.rkt [ <option> ... ]
   -m, --make, -b, --build : Generate files.
   -p, --preview : Run a local server and start your browser.
   -c, --clean : Delete generated files.
-  --pygments-css <style-name> : Generate ./css/pygments.css using style-name (ex: 'default')
 / -v, --verbose : Verbose. Put first.
 \ -V, --very-verbose : Very verbose. Put first.
   --help, -h : Show this help
